@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Meal Planner — Inventory</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui'] }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 px-6 py-4">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-semibold tracking-tight text-white">Meal Planner</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Pantry Inventory</p>
+      </div>
+      <span class="text-xs text-gray-600">{{ items | length }} item{% if items | length != 1 %}s{% endif %}</span>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-4xl mx-auto px-6 py-8">
+
+    {% if items %}
+    <div class="rounded-xl overflow-hidden border border-gray-800">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-gray-900 text-gray-400 uppercase text-xs tracking-wider">
+            <th class="text-left px-5 py-3 font-medium">Item</th>
+            <th class="text-right px-5 py-3 font-medium">Qty</th>
+            <th class="text-left px-5 py-3 font-medium">Unit</th>
+            <th class="text-left px-5 py-3 font-medium">Category</th>
+            <th class="text-left px-5 py-3 font-medium">Expires</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for item in items %}
+          <tr class="bg-gray-900 hover:bg-gray-800 transition-colors">
+            <td class="px-5 py-3.5 font-medium text-white capitalize">{{ item.item_name }}</td>
+            <td class="px-5 py-3.5 text-right tabular-nums text-gray-300">
+              {{ item.quantity | int if item.quantity == item.quantity | int else item.quantity }}
+            </td>
+            <td class="px-5 py-3.5 text-gray-400">{{ item.unit if item.unit else '—' }}</td>
+            <td class="px-5 py-3.5 text-gray-400">
+              {% if item.category %}
+                <span class="bg-gray-800 text-gray-300 text-xs px-2 py-0.5 rounded-full">{{ item.category }}</span>
+              {% else %}—{% endif %}
+            </td>
+            <td class="px-5 py-3.5 text-gray-400 text-xs">
+              {% if item.expires_at %}
+                {{ item.expires_at }}
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% else %}
+    <div class="flex flex-col items-center justify-center py-24 text-center">
+      <div class="text-4xl mb-4">🥡</div>
+      <p class="text-gray-400 font-medium">Your inventory is empty.</p>
+      <p class="text-gray-600 text-sm mt-1">Add items via <code class="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">POST /inventory/bulk</code></p>
+    </div>
+    {% endif %}
+
+  </main>
+
+</body>
+</html>
