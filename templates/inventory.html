@@ -26,9 +26,43 @@
         <h1 class="text-xl font-semibold tracking-tight text-white">Meal Planner</h1>
         <p class="text-xs text-gray-500 mt-0.5">Pantry Inventory</p>
       </div>
-      <span class="text-xs text-gray-600">{{ items | length }} item{% if items | length != 1 %}s{% endif %}</span>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-gray-600">{{ items | length }} item{% if items | length != 1 %}s{% endif %}</span>
+        <button
+          id="vegToggle"
+          data-veg="{{ 'true' if vegetarian else 'false' }}"
+          onclick="toggleVeg()"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
+            {% if vegetarian %}bg-green-900 text-green-300 border border-green-700{% else %}bg-gray-800 text-gray-400 border border-gray-700{% endif %}"
+        >
+          <span>🌿</span>
+          <span id="vegLabel">{% if vegetarian %}Vegetarian{% else %}Omnivore{% endif %}</span>
+        </button>
+      </div>
     </div>
   </header>
+
+  <script>
+    async function toggleVeg() {
+      const btn = document.getElementById('vegToggle');
+      const label = document.getElementById('vegLabel');
+      const isVeg = btn.dataset.veg === 'true';
+      const next = !isVeg;
+      await fetch('/preferences', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vegetarian: next }),
+      });
+      btn.dataset.veg = next;
+      if (next) {
+        btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-green-900 text-green-300 border border-green-700';
+        label.textContent = 'Vegetarian';
+      } else {
+        btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-gray-800 text-gray-400 border border-gray-700';
+        label.textContent = 'Omnivore';
+      }
+    }
+  </script>
 
   <!-- Main -->
   <main class="max-w-4xl mx-auto px-6 py-8">

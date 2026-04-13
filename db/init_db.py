@@ -53,6 +53,11 @@ CREATE TABLE IF NOT EXISTS meal_plan_entries (
     description  TEXT,
     FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    vegetarian  TINYINT(1)   NOT NULL DEFAULT 0
+);
 """
 
 
@@ -73,6 +78,11 @@ def init_db():
                 statement = statement.strip()
                 if statement:
                     cur.execute(statement)
+            # Seed a single preferences row if none exists
+            cur.execute(
+                "INSERT INTO user_preferences (vegetarian) "
+                "SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM user_preferences)"
+            )
         conn.commit()
         print(f"Database '{db_name}' and all tables created successfully.")
     finally:
