@@ -61,8 +61,120 @@
         btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-gray-800 text-gray-400 border border-gray-700';
         label.textContent = 'Omnivore';
       }
+      // Sync veg badge and clear stale recipe suggestions
+      const badge = document.getElementById('vegBadge');
+      if (badge) badge.classList.toggle('hidden', !next);
+      const recipesList = document.getElementById('recipesList');
+      if (recipesList) { recipesList.classList.add('hidden'); recipesList.innerHTML = ''; }
+    }
+
+    async function getRecipes() {
+      const btn = document.getElementById('cookBtn');
+      const loading = document.getElementById('recipesLoading');
+      const list = document.getElementById('recipesList');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+      loading.style.display = 'flex';
+      list.classList.add('hidden');
+      list.innerHTML = '';
+
+      try {
+        const res = await fetch('/llm/recipes', { method: 'POST' });
+        const data = await res.json();
+
+        const vegBadge = document.getElementById('vegBadge');
+        if (vegBadge) vegBadge.classList.toggle('hidden', !data.vegetarian);
+
+        data.recipes.forEach(name => {
+          const card = document.createElement('div');
+          card.className = 'rounded-xl border border-gray-800 overflow-hidden';
+
+          const nameBtn = document.createElement('button');
+          nameBtn.className = 'w-full flex items-center justify-between px-4 py-3 bg-gray-900 hover:bg-gray-800 transition-colors text-left';
+          nameBtn.addEventListener('click', () => toggleRecipe(nameBtn, name));
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'text-sm font-medium text-white';
+          nameSpan.textContent = name;
+
+          const chevron = document.createElement('span');
+          chevron.className = 'chevron text-gray-500 text-base ml-2 flex-shrink-0';
+          chevron.textContent = '›';
+
+          nameBtn.appendChild(nameSpan);
+          nameBtn.appendChild(chevron);
+
+          const detail = document.createElement('div');
+          detail.className = 'recipe-detail hidden bg-gray-950 px-5 py-4 text-sm text-gray-300 border-t border-gray-800';
+
+          card.appendChild(nameBtn);
+          card.appendChild(detail);
+          list.appendChild(card);
+        });
+
+        list.classList.remove('hidden');
+      } finally {
+        loading.style.display = 'none';
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    async function toggleRecipe(triggerBtn, name) {
+      const card = triggerBtn.parentElement;
+      const detail = card.querySelector('.recipe-detail');
+      const chevron = triggerBtn.querySelector('.chevron');
+
+      if (!detail.classList.contains('hidden')) {
+        detail.classList.add('hidden');
+        chevron.textContent = '›';
+        return;
+      }
+
+      detail.classList.remove('hidden');
+      chevron.textContent = '⌄';
+
+      if (detail.dataset.loaded) return;
+
+      const pulse = document.createElement('p');
+      pulse.className = 'text-gray-500 text-xs animate-pulse';
+      pulse.textContent = 'Fetching recipe…';
+      detail.appendChild(pulse);
+
+      const res = await fetch('/llm/recipe/' + encodeURIComponent(name), { method: 'POST' });
+      const data = await res.json();
+
+      detail.innerHTML = '';
+      const pre = document.createElement('pre');
+      pre.className = 'whitespace-pre-wrap font-sans text-sm leading-relaxed';
+      pre.textContent = data.recipe;
+      detail.appendChild(pre);
+      detail.dataset.loaded = 'true';
     }
   </script>
+
+  <!-- Recipe suggestions -->
+  <div class="max-w-4xl mx-auto px-6 pt-6 pb-2">
+    <div class="flex items-center gap-3 flex-wrap">
+      <button id="cookBtn" onclick="getRecipes()"
+        class="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-sm font-medium transition-colors">
+        <span>🍳</span>
+        <span>What's Cooking?</span>
+      </button>
+      <div id="recipesLoading" class="items-center gap-2" style="display:none">
+        <svg class="animate-spin h-4 w-4 text-indigo-400 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-xs text-gray-500 ml-1.5">Thinking…</span>
+      </div>
+      <span id="vegBadge" class="{{ '' if vegetarian else 'hidden ' }}text-xs text-green-400 bg-green-900 px-2 py-0.5 rounded-full border border-green-800">
+        🌿 Vegetarian mode
+      </span>
+    </div>
+    <div id="recipesList" class="hidden mt-4 space-y-2"></div>
+  </div>
 
   <!-- Main -->
   <main class="max-w-4xl mx-auto px-6 py-8">
