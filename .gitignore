@@ -83,7 +83,7 @@ Pipfile.lock
 
 # Local env files
 .env
-.env.*
+.env
 *.env
 
 # SQLite database files
