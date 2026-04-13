@@ -11,7 +11,7 @@ load_dotenv()
 DDL = """
 CREATE TABLE IF NOT EXISTS inventory (
     id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    item_name    VARCHAR(255) NOT NULL,
+    item_name    VARCHAR(255) NOT NULL UNIQUE,
     quantity     DECIMAL(10, 3) NOT NULL DEFAULT 0,
     unit         VARCHAR(50)  NOT NULL DEFAULT '',
     category     VARCHAR(100),
