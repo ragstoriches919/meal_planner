@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -16,6 +18,10 @@ class SubtractRequest(BaseModel):
     quantity: float
 
 
+class BulkAddRequest(BaseModel):
+    items: list[AddItemRequest]
+
+
 @router.get("")
 def list_inventory():
     return inv_db.list_inventory()
@@ -24,6 +30,11 @@ def list_inventory():
 @router.post("", status_code=201)
 def add_item(body: AddItemRequest):
     return inv_db.add_item(body.item_name, body.quantity, body.unit)
+
+
+@router.post("/bulk", status_code=201)
+def bulk_add_items(body: BulkAddRequest):
+    return [inv_db.add_item(item.item_name, item.quantity, item.unit) for item in body.items]
 
 
 @router.patch("/{item_id}")
