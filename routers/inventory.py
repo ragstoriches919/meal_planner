@@ -30,6 +30,19 @@ class UpdateItemRequest(BaseModel):
     item_name: str
     quantity: float
     unit: str = ""
+    category: str = ""
+
+
+class BulkUpdateItem(BaseModel):
+    id: int
+    item_name: str
+    quantity: float
+    unit: str = ""
+    category: str = ""
+
+
+class BulkUpdateRequest(BaseModel):
+    items: list[BulkUpdateItem]
 
 
 class DictAddRequest(BaseModel):
@@ -76,12 +89,23 @@ def add_items_from_dict(body: DictAddRequest, inventory: Optional[str] = Query(d
     return inv_db.add_items_from_dict(body.items, _resolve_inventory_id(inventory))
 
 
+@router.put("/bulk")
+def bulk_update_items(body: BulkUpdateRequest):
+    results = []
+    for item in body.items:
+        row = inv_db.get_item_by_id(item.id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Item {item.id} not found.")
+        results.append(inv_db.update_item(item.id, item.item_name, item.quantity, item.unit, item.category))
+    return results
+
+
 @router.put("/{item_id}")
 def update_item(item_id: int, body: UpdateItemRequest):
     row = inv_db.get_item_by_id(item_id)
     if row is None:
         raise HTTPException(status_code=404, detail=f"Item {item_id} not found.")
-    return inv_db.update_item(item_id, body.item_name, body.quantity, body.unit)
+    return inv_db.update_item(item_id, body.item_name, body.quantity, body.unit, body.category)
 
 
 @router.patch("/{item_id}")

@@ -65,13 +65,13 @@ def remove_item(item_id: int) -> bool:
             return rows_affected > 0
 
 
-def update_item(item_id: int, item_name: str, quantity: float, unit: str = "") -> dict:
+def update_item(item_id: int, item_name: str, quantity: float, unit: str = "", category: str = "") -> dict:
     """Update an existing inventory row by primary key."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE inventory SET item_name = %s, quantity = %s, unit = %s WHERE id = %s",
-                (item_name, quantity, unit, item_id),
+                "UPDATE inventory SET item_name = %s, quantity = %s, unit = %s, category = %s WHERE id = %s",
+                (item_name, quantity, unit, category or None, item_id),
             )
             conn.commit()
             cur.execute("SELECT * FROM inventory WHERE id = %s", (item_id,))
