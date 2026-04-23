@@ -37,6 +37,7 @@ All endpoints operate on the currently active inventory.
 | `POST` | `/inventory/bulk` | Add multiple items (list format) |
 | `POST` | `/inventory/from-dict` | Add multiple items (dict format) |
 | `PUT` | `/inventory/{id}` | Update an item |
+| `PUT` | `/inventory/bulk` | Update multiple items |
 | `PATCH` | `/inventory/{id}` | Subtract quantity from an item |
 | `DELETE` | `/inventory/{id}` | Delete an item |
 
@@ -72,6 +73,33 @@ Values can be a plain number (no unit) or a `[quantity, unit]` pair.
 ```bash
 curl "http://localhost:8000/inventory?inventory=raghu"
 ```
+
+**Update a single item:**
+```bash
+curl -X PUT http://localhost:8000/inventory/5 \
+  -H "Content-Type: application/json" \
+  -d '{"item_name": "eggs", "quantity": 12, "unit": "count", "category": "dairy"}'
+```
+
+**Bulk update items (e.g. assign categories):**
+
+First fetch items to get their IDs:
+```bash
+curl "http://localhost:8000/inventory?inventory=srida"
+```
+
+Then update using those IDs:
+```bash
+curl -X PUT http://localhost:8000/inventory/bulk \
+  -H "Content-Type: application/json" \
+  -d '{"items": [
+    {"id": 29, "item_name": "cumin", "quantity": 1, "unit": "jar", "category": "spices"},
+    {"id": 24, "item_name": "tomato", "quantity": 3, "unit": "", "category": "produce"},
+    {"id": 23, "item_name": "rice", "quantity": 2, "unit": "lbs", "category": "grains"}
+  ]}'
+```
+
+`unit` and `category` are optional. `id`, `item_name`, and `quantity` are required per item.
 
 ---
 

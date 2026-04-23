@@ -242,9 +242,9 @@
       const item_name = cellVal('item_name');
       const quantity = parseFloat(cellVal('quantity')) || 0;
       const unit = cellVal('unit');
+      const category = cellVal('category');
 
       if (!item_name) {
-        // revert
         const input = editedCell.querySelector('input');
         if (input) {
           const span = document.createElement('span');
@@ -258,13 +258,17 @@
       const res = await fetch(`/inventory/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_name, quantity, unit }),
+        body: JSON.stringify({ item_name, quantity, unit, category }),
       });
 
       if (res.ok) {
         const updated = await res.json();
-        // Restore all editable cells to spans with updated values
-        const fields = { item_name: updated.item_name, quantity: updated.quantity, unit: updated.unit || '' };
+        const fields = {
+          item_name: updated.item_name,
+          quantity: updated.quantity,
+          unit: updated.unit || '',
+          category: updated.category || '',
+        };
         for (const [field, val] of Object.entries(fields)) {
           const cell = row.querySelector(`[data-field="${field}"]`);
           if (!cell) continue;
@@ -279,8 +283,9 @@
             input.replaceWith(span);
           }
         }
+        row.dataset.category = updated.category || '';
+        buildCategoryFilters();
       } else {
-        // revert edited cell on failure
         const input = editedCell.querySelector('input');
         if (input) {
           const span = document.createElement('span');
@@ -309,6 +314,7 @@
       const qty = item.quantity == Math.floor(item.quantity) ? Math.floor(item.quantity) : item.quantity;
       const tr = document.createElement('tr');
       tr.dataset.id = item.id;
+      tr.dataset.category = item.category || '';
       tr.className = 'bg-gray-900 hover:bg-gray-800 transition-colors group';
       tr.innerHTML = `
         <td class="px-5 py-3.5 font-medium text-white capitalize cursor-pointer" data-field="item_name" onclick="startEdit(this)">
@@ -320,13 +326,70 @@
         <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="unit" onclick="startEdit(this)">
           <span class="cell-val">${item.unit || ''}</span>
         </td>
-        <td class="px-5 py-3.5 text-gray-400">—</td>
-        <td class="px-5 py-3.5 text-gray-400 text-xs">—</td>
+        <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="category" onclick="startEdit(this)">
+          <span class="cell-val">${item.category || ''}</span>
+        </td>
         <td class="px-5 py-3.5 text-right">
           <button onclick="deleteItem(${item.id}, this.closest('tr'))"
             class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400 text-base leading-none">✕</button>
         </td>`;
       return tr;
+    }
+
+    // ── Sort & filter ──────────────────────────────────────────────────────────
+
+    let sortAsc = null; // null = unsorted, true = A→Z, false = Z→A
+
+    function sortByName() {
+      const tbody = document.getElementById('inventoryBody');
+      const addRow = document.getElementById('addRow');
+      const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+      sortAsc = sortAsc === true ? false : true;
+      rows.sort((a, b) => {
+        const aName = a.querySelector('[data-field="item_name"] .cell-val').textContent.trim().toLowerCase();
+        const bName = b.querySelector('[data-field="item_name"] .cell-val').textContent.trim().toLowerCase();
+        return sortAsc ? aName.localeCompare(bName) : bName.localeCompare(aName);
+      });
+      rows.forEach(r => tbody.insertBefore(r, addRow));
+      document.getElementById('sortIcon').textContent = sortAsc ? ' ↑' : ' ↓';
+    }
+
+    let activeCategory = '';
+
+    function buildCategoryFilters() {
+      const container = document.getElementById('categoryFilters');
+      const rows = document.querySelectorAll('#inventoryBody tr[data-id]');
+      const cats = new Set();
+      rows.forEach(r => { if (r.dataset.category) cats.add(r.dataset.category); });
+
+      container.innerHTML = '';
+      if (cats.size === 0) return;
+
+      const pillClass = (active) =>
+        `px-3 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer ` +
+        (active ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500');
+
+      const allBtn = document.createElement('button');
+      allBtn.textContent = 'All';
+      allBtn.className = pillClass(activeCategory === '');
+      allBtn.onclick = () => filterByCategory('');
+      container.appendChild(allBtn);
+
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.textContent = cat;
+        btn.className = pillClass(activeCategory === cat);
+        btn.onclick = () => filterByCategory(cat);
+        container.appendChild(btn);
+      });
+    }
+
+    function filterByCategory(cat) {
+      activeCategory = cat;
+      document.querySelectorAll('#inventoryBody tr[data-id]').forEach(r => {
+        r.style.display = (!cat || r.dataset.category === cat) ? '' : 'none';
+      });
+      buildCategoryFilters();
     }
 
     async function submitAdd() {
@@ -368,6 +431,7 @@
       document.getElementById('addUnit').addEventListener('keydown', e => {
         if (e.key === 'Enter') submitAdd();
       });
+      buildCategoryFilters();
     });
   </script>
 
@@ -398,21 +462,26 @@
 
   <!-- Main -->
   <main class="max-w-4xl mx-auto px-6 py-8">
+
+    <!-- Category filter pills -->
+    <div id="categoryFilters" class="flex flex-wrap gap-2 mb-4"></div>
+
     <div class="rounded-xl overflow-hidden border border-gray-800">
       <table class="w-full text-sm">
         <thead>
           <tr class="bg-gray-900 text-gray-400 uppercase text-xs tracking-wider">
-            <th class="text-left px-5 py-3 font-medium">Item</th>
+            <th class="text-left px-5 py-3 font-medium cursor-pointer select-none hover:text-white transition-colors" onclick="sortByName()">
+              Item<span id="sortIcon"></span>
+            </th>
             <th class="text-right px-5 py-3 font-medium">Qty</th>
             <th class="text-left px-5 py-3 font-medium">Unit</th>
             <th class="text-left px-5 py-3 font-medium">Category</th>
-            <th class="text-left px-5 py-3 font-medium">Expires</th>
             <th class="px-5 py-3"></th>
           </tr>
         </thead>
         <tbody id="inventoryBody" class="divide-y divide-gray-800">
           {% for item in items %}
-          <tr data-id="{{ item.id }}" class="bg-gray-900 hover:bg-gray-800 transition-colors group">
+          <tr data-id="{{ item.id }}" data-category="{{ item.category if item.category else '' }}" class="bg-gray-900 hover:bg-gray-800 transition-colors group">
             <td class="px-5 py-3.5 font-medium text-white capitalize cursor-pointer" data-field="item_name" onclick="startEdit(this)">
               <span class="cell-val">{{ item.item_name }}</span>
             </td>
@@ -422,13 +491,8 @@
             <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="unit" onclick="startEdit(this)">
               <span class="cell-val">{{ item.unit if item.unit else '' }}</span>
             </td>
-            <td class="px-5 py-3.5 text-gray-400">
-              {% if item.category %}
-                <span class="bg-gray-800 text-gray-300 text-xs px-2 py-0.5 rounded-full">{{ item.category }}</span>
-              {% else %}—{% endif %}
-            </td>
-            <td class="px-5 py-3.5 text-gray-400 text-xs">
-              {{ item.expires_at if item.expires_at else '—' }}
+            <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="category" onclick="startEdit(this)">
+              <span class="cell-val">{{ item.category if item.category else '' }}</span>
             </td>
             <td class="px-5 py-3.5 text-right">
               <button onclick="deleteItem({{ item.id }}, this.closest('tr'))"
@@ -450,7 +514,7 @@
               <input id="addUnit" type="text" placeholder="Unit"
                 class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none">
             </td>
-            <td class="px-5 py-2.5 text-gray-600 text-xs" colspan="2">Enter to add</td>
+            <td class="px-5 py-2.5 text-gray-600 text-xs" colspan="1">Enter to add</td>
             <td class="px-5 py-2.5 text-right">
               <button onclick="submitAdd()" class="text-indigo-400 hover:text-indigo-300 text-sm font-medium">+ Add</button>
             </td>
