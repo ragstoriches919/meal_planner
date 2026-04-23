@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
+from db import inventories as inventories_db
 from db import inventory as inv_db
 from db import preferences as prefs_db
 from services.llm import query_gemma, serialize_inventory
@@ -16,7 +17,8 @@ class RecipeHintRequest(BaseModel):
 
 @router.get("/chat")
 def chat(q: str = Query(default="What meals can I make with what I have?")):
-    items = inv_db.list_inventory()
+    inv_id = inventories_db.get_active_inventory_id() or 1
+    items = inv_db.list_inventory(inv_id)
     context = serialize_inventory(items)
     prefs = prefs_db.get_preferences()
     vegetarian = bool(prefs["vegetarian"]) if prefs else False
@@ -26,7 +28,8 @@ def chat(q: str = Query(default="What meals can I make with what I have?")):
 
 @router.post("/recipes")
 def get_recipes(body: RecipeHintRequest = RecipeHintRequest()):
-    items = inv_db.list_inventory()
+    inv_id = inventories_db.get_active_inventory_id() or 1
+    items = inv_db.list_inventory(inv_id)
     context = serialize_inventory(items)
     prefs = prefs_db.get_preferences()
     vegetarian = bool(prefs["vegetarian"]) if prefs else False
@@ -47,7 +50,8 @@ def get_recipes(body: RecipeHintRequest = RecipeHintRequest()):
 
 @router.post("/recipe/{name}")
 def get_recipe(name: str):
-    items = inv_db.list_inventory()
+    inv_id = inventories_db.get_active_inventory_id() or 1
+    items = inv_db.list_inventory(inv_id)
     context = serialize_inventory(items)
     prefs = prefs_db.get_preferences()
     vegetarian = bool(prefs["vegetarian"]) if prefs else False
