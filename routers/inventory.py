@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Dict, List, Union
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -22,8 +24,14 @@ class BulkAddRequest(BaseModel):
     items: list[AddItemRequest]
 
 
+class UpdateItemRequest(BaseModel):
+    item_name: str
+    quantity: float
+    unit: str = ""
+
+
 class DictAddRequest(BaseModel):
-    items: dict[str, float | list]
+    items: Dict[str, Union[float, List]]
 
 
 @router.get("")
@@ -44,6 +52,14 @@ def bulk_add_items(body: BulkAddRequest):
 @router.post("/from-dict", status_code=201)
 def add_items_from_dict(body: DictAddRequest):
     return inv_db.add_items_from_dict(body.items)
+
+
+@router.put("/{item_id}")
+def update_item(item_id: int, body: UpdateItemRequest):
+    row = inv_db.get_item_by_id(item_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Item {item_id} not found.")
+    return inv_db.update_item(item_id, body.item_name, body.quantity, body.unit)
 
 
 @router.patch("/{item_id}")
