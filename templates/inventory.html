@@ -71,6 +71,7 @@
       const btn = document.getElementById('cookBtn');
       const loading = document.getElementById('recipesLoading');
       const list = document.getElementById('recipesList');
+      const hint = document.getElementById('recipeHint').value.trim();
 
       btn.disabled = true;
       btn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -79,7 +80,11 @@
       list.innerHTML = '';
 
       try {
-        const res = await fetch('/llm/recipes', { method: 'POST' });
+        const res = await fetch('/llm/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hint }),
+        });
         const data = await res.json();
 
         const vegBadge = document.getElementById('vegBadge');
@@ -330,6 +335,9 @@
         <span>🍳</span>
         <span>What's Cooking?</span>
       </button>
+      <input id="recipeHint" type="text" placeholder="Provide context..."
+        onkeydown="if(event.key==='Enter') getRecipes()"
+        class="bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:border-indigo-500 outline-none placeholder-gray-600 w-72">
       <div id="recipesLoading" class="items-center gap-2" style="display:none">
         <svg class="animate-spin h-4 w-4 text-indigo-400 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

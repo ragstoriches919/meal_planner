@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 
 from db import inventory as inv_db
 from db import preferences as prefs_db
 from services.llm import query_gemma, serialize_inventory
 
 router = APIRouter(prefix="/llm", tags=["llm"])
+
+
+class RecipeHintRequest(BaseModel):
+    hint: str = ""
 
 
 @router.get("/chat")
@@ -20,13 +25,14 @@ def chat(q: str = Query(default="What meals can I make with what I have?")):
 
 
 @router.post("/recipes")
-def get_recipes():
+def get_recipes(body: RecipeHintRequest = RecipeHintRequest()):
     items = inv_db.list_inventory()
     context = serialize_inventory(items)
     prefs = prefs_db.get_preferences()
     vegetarian = bool(prefs["vegetarian"]) if prefs else False
+    hint_clause = f'Focus suggestions around: "{body.hint}". ' if body.hint.strip() else ""
     raw = query_gemma(
-        "List exactly 5 meals I can make with the pantry ingredients above. "
+        f"{hint_clause}List exactly 5 meals I can make with the pantry ingredients above. "
         "Reply with only the meal names, one per line, no numbers, no punctuation, no extra text.",
         context,
         vegetarian=vegetarian,
