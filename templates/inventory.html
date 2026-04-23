@@ -16,6 +16,19 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .recipe-prose h3, .recipe-prose h4 { font-weight: 600; color: #f3f4f6; margin: 1rem 0 0.4rem; }
+    .recipe-prose h3 { font-size: 1rem; }
+    .recipe-prose h4 { font-size: 0.9rem; color: #d1d5db; }
+    .recipe-prose p  { margin: 0.4rem 0; }
+    .recipe-prose ul { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
+    .recipe-prose ol { list-style: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
+    .recipe-prose li { margin: 0.2rem 0; }
+    .recipe-prose strong { color: #f9fafb; }
+    .recipe-prose em { color: #9ca3af; }
+    .recipe-prose hr { border-color: #374151; margin: 0.75rem 0; }
+  </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen font-sans">
 
@@ -145,7 +158,7 @@
           nameBtn.appendChild(chevron);
 
           const detail = document.createElement('div');
-          detail.className = 'recipe-detail hidden bg-gray-950 px-5 py-4 text-sm text-gray-300 border-t border-gray-800';
+          detail.className = 'recipe-detail recipe-prose hidden bg-gray-950 px-5 py-4 text-sm text-gray-300 border-t border-gray-800';
 
           card.appendChild(nameBtn);
           card.appendChild(detail);
@@ -184,11 +197,7 @@
       const res = await fetch('/llm/recipe/' + encodeURIComponent(name), { method: 'POST' });
       const data = await res.json();
 
-      detail.innerHTML = '';
-      const pre = document.createElement('pre');
-      pre.className = 'whitespace-pre-wrap font-sans text-sm leading-relaxed';
-      pre.textContent = data.recipe;
-      detail.appendChild(pre);
+      detail.innerHTML = marked.parse(data.recipe);
       detail.dataset.loaded = 'true';
     }
 
