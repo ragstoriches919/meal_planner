@@ -466,7 +466,179 @@
         if (e.key === 'Enter') submitAdd();
       });
       buildCategoryFilters();
+
+      // ── Receipt scanner ──────────────────────────────────────────────────
+      const receiptZone = document.getElementById('receiptZone');
+      const receiptFile = document.getElementById('receiptFile');
+
+      receiptZone.addEventListener('dragover', e => {
+        e.preventDefault();
+        receiptZone.classList.add('border-indigo-500', 'bg-gray-800');
+      });
+      receiptZone.addEventListener('dragleave', () => {
+        receiptZone.classList.remove('border-indigo-500', 'bg-gray-800');
+      });
+      receiptZone.addEventListener('drop', e => {
+        e.preventDefault();
+        receiptZone.classList.remove('border-indigo-500', 'bg-gray-800');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) loadReceiptPreview(file);
+      });
+      receiptZone.addEventListener('click', () => receiptFile.click());
+      receiptFile.addEventListener('change', () => {
+        if (receiptFile.files[0]) loadReceiptPreview(receiptFile.files[0]);
+      });
     });
+
+    function loadReceiptPreview(file) {
+      window._receiptFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const preview = document.getElementById('receiptPreview');
+        preview.src = e.target.result;
+        document.getElementById('receiptPreviewWrap').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+      const btn = document.getElementById('receiptScanBtn');
+      btn.disabled = false;
+      btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+    async function scanReceipt() {
+      const btn      = document.getElementById('receiptScanBtn');
+      const loading  = document.getElementById('receiptLoading');
+      const results  = document.getElementById('receiptResults');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+      loading.classList.remove('hidden');
+      results.classList.add('hidden');
+      results.innerHTML = '';
+
+      const formData = new FormData();
+      formData.append('file', window._receiptFile);
+
+      try {
+        const res  = await fetch('/llm/scan-receipt', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (res.ok && data.items && data.items.length > 0) {
+          showReceiptConfirmation(data.items);
+        } else if (res.ok) {
+          results.innerHTML = '<p class="text-gray-500 text-sm">No grocery items found in the image.</p>';
+          results.classList.remove('hidden');
+        } else {
+          results.innerHTML = `<p class="text-red-400 text-sm">Error: ${data.detail || 'Unknown error'}</p>`;
+          results.classList.remove('hidden');
+        }
+      } catch (e) {
+        results.innerHTML = `<p class="text-red-400 text-sm">Request failed: ${e.message}</p>`;
+        results.classList.remove('hidden');
+      } finally {
+        loading.classList.add('hidden');
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    function showReceiptConfirmation(items) {
+      const results = document.getElementById('receiptResults');
+      results.innerHTML = '';
+
+      const header = document.createElement('p');
+      header.className = 'text-sm text-gray-300 font-medium mb-2';
+      header.textContent = `Found ${items.length} item${items.length !== 1 ? 's' : ''} — review and confirm:`;
+      results.appendChild(header);
+
+      const list = document.createElement('ul');
+      list.id = 'receiptConfirmList';
+      list.className = 'space-y-1 mb-3';
+      items.forEach((item, i) => {
+        const li = document.createElement('li');
+        li.dataset.idx = i;
+        li.className = 'flex items-center gap-2 text-sm text-gray-300 bg-gray-800 rounded-lg px-3 py-2';
+        const qty = item.quantity == Math.floor(item.quantity) ? Math.floor(item.quantity) : item.quantity;
+        const unitStr = item.unit ? ` ${item.unit}` : '';
+        li.innerHTML = `
+          <span class="flex-1">${item.name}</span>
+          <span class="tabular-nums text-gray-400">${qty}${unitStr}</span>
+          <button onclick="this.closest('li').remove(); updateConfirmCount()" class="text-gray-600 hover:text-red-400 text-base leading-none ml-1">✕</button>`;
+        li.dataset.name     = item.name;
+        li.dataset.quantity = item.quantity;
+        li.dataset.unit     = item.unit || '';
+        list.appendChild(li);
+      });
+      results.appendChild(list);
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'flex items-center gap-2';
+
+      const confirmBtn = document.createElement('button');
+      confirmBtn.id = 'receiptConfirmBtn';
+      confirmBtn.className = 'px-4 py-2 rounded-lg bg-green-700 hover:bg-green-600 text-white text-sm font-medium transition-colors';
+      confirmBtn.textContent = `Add ${items.length} item${items.length !== 1 ? 's' : ''}`;
+      confirmBtn.onclick = confirmReceiptAdd;
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium transition-colors';
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = () => { results.classList.add('hidden'); results.innerHTML = ''; };
+
+      btnRow.appendChild(confirmBtn);
+      btnRow.appendChild(cancelBtn);
+      results.appendChild(btnRow);
+      results.classList.remove('hidden');
+    }
+
+    function updateConfirmCount() {
+      const remaining = document.querySelectorAll('#receiptConfirmList li').length;
+      const btn = document.getElementById('receiptConfirmBtn');
+      if (btn) btn.textContent = `Add ${remaining} item${remaining !== 1 ? 's' : ''}`;
+    }
+
+    async function confirmReceiptAdd() {
+      const rows = document.querySelectorAll('#receiptConfirmList li');
+      if (rows.length === 0) return;
+
+      const confirmBtn = document.getElementById('receiptConfirmBtn');
+      confirmBtn.disabled = true;
+      confirmBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      const switcher = document.getElementById('inventorySwitcher');
+      const invName  = switcher.options[switcher.selectedIndex].text.trim();
+
+      const items = Array.from(rows).map(li => ({
+        item_name: li.dataset.name,
+        quantity:  parseFloat(li.dataset.quantity),
+        unit:      li.dataset.unit,
+      }));
+
+      try {
+        const res  = await fetch(`/inventory/bulk?inventory=${encodeURIComponent(invName)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items }),
+        });
+        const added = await res.json();
+
+        if (res.ok) {
+          const addRow = document.getElementById('addRow');
+          added.forEach(item => addRow.closest('tbody').insertBefore(makeRow(item), addRow));
+          updateCount();
+          buildCategoryFilters();
+
+          const results = document.getElementById('receiptResults');
+          results.innerHTML = `<p class="text-green-400 text-sm font-medium">Added ${added.length} item${added.length !== 1 ? 's' : ''}:
+            <span class="font-normal text-gray-300">${added.map(i => i.item_name).join(', ')}</span></p>`;
+        } else {
+          document.getElementById('receiptResults').innerHTML =
+            `<p class="text-red-400 text-sm">Failed to add items.</p>`;
+        }
+      } catch (e) {
+        document.getElementById('receiptResults').innerHTML =
+          `<p class="text-red-400 text-sm">Request failed: ${e.message}</p>`;
+      }
+    }
   </script>
 
   <!-- Recipe suggestions -->
@@ -492,6 +664,38 @@
       </span>
     </div>
     <div id="recipesList" class="hidden mt-4 space-y-2"></div>
+  </div>
+
+  <!-- Receipt scanner -->
+  <div class="max-w-4xl mx-auto px-6 py-4 border-t border-gray-800">
+    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Scan Receipt</p>
+
+    <div id="receiptZone"
+      class="border-2 border-dashed border-gray-700 rounded-xl p-6 text-center cursor-pointer transition-colors hover:border-gray-500 select-none">
+      <p class="text-gray-500 text-sm">Drop a receipt image here, or click to browse</p>
+      <input id="receiptFile" type="file" accept="image/*" class="hidden">
+    </div>
+
+    <div id="receiptPreviewWrap" class="hidden mt-3 flex justify-center">
+      <img id="receiptPreview" class="max-h-52 rounded-lg border border-gray-700 object-contain" alt="Receipt preview">
+    </div>
+
+    <div class="mt-3 flex items-center gap-3 flex-wrap">
+      <button id="receiptScanBtn" onclick="scanReceipt()" disabled
+        class="opacity-50 cursor-not-allowed flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium transition-colors">
+        <span>📋</span>
+        <span>Add items from receipt</span>
+      </button>
+      <div id="receiptLoading" class="hidden flex items-center gap-2">
+        <svg class="animate-spin h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span class="text-xs text-gray-500">Scanning…</span>
+      </div>
+    </div>
+
+    <div id="receiptResults" class="hidden mt-2"></div>
   </div>
 
   <!-- Main -->

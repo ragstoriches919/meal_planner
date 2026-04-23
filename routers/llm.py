@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, File, Query, UploadFile
 from pydantic import BaseModel
 
 from db import inventories as inventories_db
 from db import inventory as inv_db
 from db import preferences as prefs_db
-from services.llm import query_gemma, serialize_inventory
+from services.llm import query_gemma, scan_receipt, serialize_inventory
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
@@ -46,6 +46,24 @@ def get_recipes(body: RecipeHintRequest = RecipeHintRequest()):
         if line.strip()
     ][:5]
     return {"recipes": recipes, "vegetarian": vegetarian}
+
+
+@router.post("/scan-receipt")
+async def scan_receipt_endpoint(file: UploadFile = File(...)):
+    """Extract items from a receipt image and return them for user confirmation — does not add to inventory."""
+    image_bytes = await file.read()
+    items = scan_receipt(image_bytes)
+    cleaned = []
+    for item in items:
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        cleaned.append({
+            "name": name,
+            "quantity": float(item.get("quantity", 1) or 1),
+            "unit": str(item.get("unit", "") or ""),
+        })
+    return {"items": cleaned}
 
 
 @router.post("/recipe/{name}")
