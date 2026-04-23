@@ -27,7 +27,7 @@
         <p class="text-xs text-gray-500 mt-0.5">Pantry Inventory</p>
       </div>
       <div class="flex items-center gap-3">
-        <span class="text-xs text-gray-600">{{ items | length }} item{% if items | length != 1 %}s{% endif %}</span>
+        <span id="itemCount" class="text-xs text-gray-600">{{ items | length }} item{% if items | length != 1 %}s{% endif %}</span>
         <button
           id="vegToggle"
           data-veg="{{ 'true' if vegetarian else 'false' }}"
@@ -61,7 +61,6 @@
         btn.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-gray-800 text-gray-400 border border-gray-700';
         label.textContent = 'Omnivore';
       }
-      // Sync veg badge and clear stale recipe suggestions
       const badge = document.getElementById('vegBadge');
       if (badge) badge.classList.toggle('hidden', !next);
       const recipesList = document.getElementById('recipesList');
@@ -152,6 +151,175 @@
       detail.appendChild(pre);
       detail.dataset.loaded = 'true';
     }
+
+    // ── Inventory editing ──────────────────────────────────────────────────
+
+    function startEdit(cell) {
+      if (cell.querySelector('input')) return;
+      const span = cell.querySelector('.cell-val');
+      const originalVal = span.textContent.trim();
+
+      const input = document.createElement('input');
+      input.type = cell.dataset.field === 'quantity' ? 'number' : 'text';
+      input.value = originalVal;
+      input.className = 'bg-gray-800 text-white rounded px-2 py-0.5 w-full text-sm border border-indigo-500 outline-none ' +
+        (cell.dataset.field === 'quantity' ? 'text-right' : '');
+      if (cell.dataset.field === 'quantity') input.setAttribute('step', 'any');
+
+      span.replaceWith(input);
+      input.focus();
+      input.select();
+
+      input.addEventListener('blur', () => saveRow(cell.closest('tr'), cell, originalVal));
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') {
+          const newSpan = document.createElement('span');
+          newSpan.className = 'cell-val';
+          newSpan.textContent = originalVal;
+          input.replaceWith(newSpan);
+        }
+      });
+    }
+
+    async function saveRow(row, editedCell, originalVal) {
+      function cellVal(field) {
+        const cell = row.querySelector(`[data-field="${field}"]`);
+        const input = cell && cell.querySelector('input');
+        return input ? input.value : (cell ? cell.querySelector('.cell-val').textContent.trim() : '');
+      }
+
+      const id = row.dataset.id;
+      const item_name = cellVal('item_name');
+      const quantity = parseFloat(cellVal('quantity')) || 0;
+      const unit = cellVal('unit');
+
+      if (!item_name) {
+        // revert
+        const input = editedCell.querySelector('input');
+        if (input) {
+          const span = document.createElement('span');
+          span.className = 'cell-val';
+          span.textContent = originalVal;
+          input.replaceWith(span);
+        }
+        return;
+      }
+
+      const res = await fetch(`/inventory/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_name, quantity, unit }),
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        // Restore all editable cells to spans with updated values
+        const fields = { item_name: updated.item_name, quantity: updated.quantity, unit: updated.unit || '' };
+        for (const [field, val] of Object.entries(fields)) {
+          const cell = row.querySelector(`[data-field="${field}"]`);
+          if (!cell) continue;
+          const input = cell.querySelector('input');
+          const displayVal = field === 'quantity'
+            ? (val == Math.floor(val) ? Math.floor(val) : val)
+            : val;
+          if (input) {
+            const span = document.createElement('span');
+            span.className = 'cell-val';
+            span.textContent = displayVal;
+            input.replaceWith(span);
+          }
+        }
+      } else {
+        // revert edited cell on failure
+        const input = editedCell.querySelector('input');
+        if (input) {
+          const span = document.createElement('span');
+          span.className = 'cell-val';
+          span.textContent = originalVal;
+          input.replaceWith(span);
+        }
+      }
+    }
+
+    async function deleteItem(id, row) {
+      const res = await fetch(`/inventory/${id}`, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        row.remove();
+        updateCount();
+      }
+    }
+
+    function updateCount() {
+      const n = document.querySelectorAll('#inventoryBody tr[data-id]').length;
+      const el = document.getElementById('itemCount');
+      if (el) el.textContent = `${n} item${n !== 1 ? 's' : ''}`;
+    }
+
+    function makeRow(item) {
+      const qty = item.quantity == Math.floor(item.quantity) ? Math.floor(item.quantity) : item.quantity;
+      const tr = document.createElement('tr');
+      tr.dataset.id = item.id;
+      tr.className = 'bg-gray-900 hover:bg-gray-800 transition-colors group';
+      tr.innerHTML = `
+        <td class="px-5 py-3.5 font-medium text-white capitalize cursor-pointer" data-field="item_name" onclick="startEdit(this)">
+          <span class="cell-val">${item.item_name}</span>
+        </td>
+        <td class="px-5 py-3.5 text-right tabular-nums text-gray-300 cursor-pointer" data-field="quantity" onclick="startEdit(this)">
+          <span class="cell-val">${qty}</span>
+        </td>
+        <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="unit" onclick="startEdit(this)">
+          <span class="cell-val">${item.unit || ''}</span>
+        </td>
+        <td class="px-5 py-3.5 text-gray-400">—</td>
+        <td class="px-5 py-3.5 text-gray-400 text-xs">—</td>
+        <td class="px-5 py-3.5 text-right">
+          <button onclick="deleteItem(${item.id}, this.closest('tr'))"
+            class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400 text-base leading-none">✕</button>
+        </td>`;
+      return tr;
+    }
+
+    async function submitAdd() {
+      const nameInput = document.getElementById('addName');
+      const qtyInput  = document.getElementById('addQty');
+      const unitInput = document.getElementById('addUnit');
+
+      const item_name = nameInput.value.trim();
+      const quantity  = parseFloat(qtyInput.value);
+      const unit      = unitInput.value.trim();
+
+      if (!item_name || isNaN(quantity) || quantity <= 0) return;
+
+      const res = await fetch('/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_name, quantity, unit }),
+      });
+
+      if (res.ok) {
+        const item = await res.json();
+        const addRow = document.getElementById('addRow');
+        addRow.closest('tbody').insertBefore(makeRow(item), addRow);
+        nameInput.value = '';
+        qtyInput.value  = '';
+        unitInput.value = '';
+        nameInput.focus();
+        updateCount();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('addName').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitAdd();
+      });
+      document.getElementById('addQty').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitAdd();
+      });
+      document.getElementById('addUnit').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitAdd();
+      });
+    });
   </script>
 
   <!-- Recipe suggestions -->
@@ -178,8 +346,6 @@
 
   <!-- Main -->
   <main class="max-w-4xl mx-auto px-6 py-8">
-
-    {% if items %}
     <div class="rounded-xl overflow-hidden border border-gray-800">
       <table class="w-full text-sm">
         <thead>
@@ -189,40 +355,57 @@
             <th class="text-left px-5 py-3 font-medium">Unit</th>
             <th class="text-left px-5 py-3 font-medium">Category</th>
             <th class="text-left px-5 py-3 font-medium">Expires</th>
+            <th class="px-5 py-3"></th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-800">
+        <tbody id="inventoryBody" class="divide-y divide-gray-800">
           {% for item in items %}
-          <tr class="bg-gray-900 hover:bg-gray-800 transition-colors">
-            <td class="px-5 py-3.5 font-medium text-white capitalize">{{ item.item_name }}</td>
-            <td class="px-5 py-3.5 text-right tabular-nums text-gray-300">
-              {{ item.quantity | int if item.quantity == item.quantity | int else item.quantity }}
+          <tr data-id="{{ item.id }}" class="bg-gray-900 hover:bg-gray-800 transition-colors group">
+            <td class="px-5 py-3.5 font-medium text-white capitalize cursor-pointer" data-field="item_name" onclick="startEdit(this)">
+              <span class="cell-val">{{ item.item_name }}</span>
             </td>
-            <td class="px-5 py-3.5 text-gray-400">{{ item.unit if item.unit else '—' }}</td>
+            <td class="px-5 py-3.5 text-right tabular-nums text-gray-300 cursor-pointer" data-field="quantity" onclick="startEdit(this)">
+              <span class="cell-val">{{ item.quantity | int if item.quantity == item.quantity | int else item.quantity }}</span>
+            </td>
+            <td class="px-5 py-3.5 text-gray-400 cursor-pointer" data-field="unit" onclick="startEdit(this)">
+              <span class="cell-val">{{ item.unit if item.unit else '' }}</span>
+            </td>
             <td class="px-5 py-3.5 text-gray-400">
               {% if item.category %}
                 <span class="bg-gray-800 text-gray-300 text-xs px-2 py-0.5 rounded-full">{{ item.category }}</span>
               {% else %}—{% endif %}
             </td>
             <td class="px-5 py-3.5 text-gray-400 text-xs">
-              {% if item.expires_at %}
-                {{ item.expires_at }}
-              {% else %}—{% endif %}
+              {{ item.expires_at if item.expires_at else '—' }}
+            </td>
+            <td class="px-5 py-3.5 text-right">
+              <button onclick="deleteItem({{ item.id }}, this.closest('tr'))"
+                class="opacity-0 group-hover:opacity-100 transition-opacity text-gray-600 hover:text-red-400 text-base leading-none">✕</button>
             </td>
           </tr>
           {% endfor %}
+          <!-- Add item row -->
+          <tr id="addRow" class="bg-gray-900 border-t border-gray-700">
+            <td class="px-4 py-2.5">
+              <input id="addName" type="text" placeholder="Item name"
+                class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none">
+            </td>
+            <td class="px-4 py-2.5">
+              <input id="addQty" type="number" placeholder="Qty" min="0" step="any"
+                class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none text-right">
+            </td>
+            <td class="px-4 py-2.5">
+              <input id="addUnit" type="text" placeholder="Unit"
+                class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none">
+            </td>
+            <td class="px-5 py-2.5 text-gray-600 text-xs" colspan="2">Enter to add</td>
+            <td class="px-5 py-2.5 text-right">
+              <button onclick="submitAdd()" class="text-indigo-400 hover:text-indigo-300 text-sm font-medium">+ Add</button>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
-
-    {% else %}
-    <div class="flex flex-col items-center justify-center py-24 text-center">
-      <div class="text-4xl mb-4">🥡</div>
-      <p class="text-gray-400 font-medium">Your inventory is empty.</p>
-      <p class="text-gray-600 text-sm mt-1">Add items via <code class="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">POST /inventory/bulk</code></p>
-    </div>
-    {% endif %}
-
   </main>
 
 </body>

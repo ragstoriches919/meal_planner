@@ -78,6 +78,19 @@ def get_item_by_id(item_id: int) -> dict | None:
             return cur.fetchone()
 
 
+def update_item(item_id: int, item_name: str, quantity: float, unit: str = "") -> dict:
+    """Update an existing inventory row by primary key."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE inventory SET item_name = %s, quantity = %s, unit = %s WHERE id = %s",
+                (item_name, quantity, unit, item_id),
+            )
+            conn.commit()
+            cur.execute("SELECT * FROM inventory WHERE id = %s", (item_id,))
+            return cur.fetchone()
+
+
 def add_items_from_dict(items: dict) -> list[dict]:
     """Add multiple items from a dict.
 

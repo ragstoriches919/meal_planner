@@ -24,5 +24,5 @@ def inventory_ui(request: Request):
     prefs = prefs_db.get_preferences()
     vegetarian = bool(prefs["vegetarian"]) if prefs else False
     return templates.TemplateResponse(
-        "inventory.html", {"request": request, "items": items, "vegetarian": vegetarian}
+        request, "inventory.html", {"items": items, "vegetarian": vegetarian}
     )
