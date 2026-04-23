@@ -137,6 +137,28 @@ def _migrate(conn, db_name: str) -> None:
         )
         conn.commit()
 
+        # 6. Fix unique constraint on inventory: must be (inventory_id, item_name), not item_name alone
+        cur.execute(
+            "SELECT INDEX_NAME FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'inventory' "
+            "AND NON_UNIQUE = 0 AND INDEX_NAME != 'PRIMARY' AND INDEX_NAME != 'uq_inventory_item'",
+            (db_name,),
+        )
+        for row in cur.fetchall():
+            cur.execute(f"ALTER TABLE inventory DROP INDEX `{row['INDEX_NAME']}`")
+        cur.execute(
+            "SELECT INDEX_NAME FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = 'inventory' "
+            "AND INDEX_NAME = 'uq_inventory_item'",
+            (db_name,),
+        )
+        if not cur.fetchone():
+            cur.execute(
+                "ALTER TABLE inventory "
+                "ADD UNIQUE KEY uq_inventory_item (inventory_id, item_name)"
+            )
+        conn.commit()
+
 
 def init_db():
     conn = pymysql.connect(

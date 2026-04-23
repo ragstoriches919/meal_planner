@@ -338,13 +338,15 @@
 
     // ── Sort & filter ──────────────────────────────────────────────────────────
 
-    let sortAsc = null; // null = unsorted, true = A→Z, false = Z→A
+    let sortAsc = null;    // null = unsorted, true = A→Z, false = Z→A
+    let sortCatAsc = null;
 
     function sortByName() {
       const tbody = document.getElementById('inventoryBody');
       const addRow = document.getElementById('addRow');
       const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
       sortAsc = sortAsc === true ? false : true;
+      sortCatAsc = null;
       rows.sort((a, b) => {
         const aName = a.querySelector('[data-field="item_name"] .cell-val').textContent.trim().toLowerCase();
         const bName = b.querySelector('[data-field="item_name"] .cell-val').textContent.trim().toLowerCase();
@@ -352,6 +354,23 @@
       });
       rows.forEach(r => tbody.insertBefore(r, addRow));
       document.getElementById('sortIcon').textContent = sortAsc ? ' ↑' : ' ↓';
+      document.getElementById('sortCatIcon').textContent = '';
+    }
+
+    function sortByCategory() {
+      const tbody = document.getElementById('inventoryBody');
+      const addRow = document.getElementById('addRow');
+      const rows = Array.from(tbody.querySelectorAll('tr[data-id]'));
+      sortCatAsc = sortCatAsc === true ? false : true;
+      sortAsc = null;
+      rows.sort((a, b) => {
+        const aCat = (a.dataset.category || '').toLowerCase();
+        const bCat = (b.dataset.category || '').toLowerCase();
+        return sortCatAsc ? aCat.localeCompare(bCat) : bCat.localeCompare(aCat);
+      });
+      rows.forEach(r => tbody.insertBefore(r, addRow));
+      document.getElementById('sortCatIcon').textContent = sortCatAsc ? ' ↑' : ' ↓';
+      document.getElementById('sortIcon').textContent = '';
     }
 
     let activeCategory = '';
@@ -393,31 +412,43 @@
     }
 
     async function submitAdd() {
-      const nameInput = document.getElementById('addName');
-      const qtyInput  = document.getElementById('addQty');
-      const unitInput = document.getElementById('addUnit');
+      const nameInput     = document.getElementById('addName');
+      const qtyInput      = document.getElementById('addQty');
+      const unitInput     = document.getElementById('addUnit');
+      const categoryInput = document.getElementById('addCategory');
 
       const item_name = nameInput.value.trim();
       const quantity  = parseFloat(qtyInput.value);
       const unit      = unitInput.value.trim();
+      const category  = categoryInput.value.trim();
 
       if (!item_name || isNaN(quantity) || quantity <= 0) return;
 
-      const res = await fetch('/inventory', {
+      const switcher = document.getElementById('inventorySwitcher');
+      const invName  = switcher.options[switcher.selectedIndex].text.trim();
+
+      const res = await fetch(`/inventory?inventory=${encodeURIComponent(invName)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_name, quantity, unit }),
+        body: JSON.stringify({ item_name, quantity, unit, category }),
       });
 
       if (res.ok) {
         const item = await res.json();
         const addRow = document.getElementById('addRow');
         addRow.closest('tbody').insertBefore(makeRow(item), addRow);
-        nameInput.value = '';
-        qtyInput.value  = '';
-        unitInput.value = '';
+        nameInput.value     = '';
+        qtyInput.value      = '';
+        unitInput.value     = '';
+        categoryInput.value = '';
         nameInput.focus();
         updateCount();
+        filterByCategory('');
+        buildCategoryFilters();
+      } else {
+        console.error('Failed to add item:', res.status, await res.text());
+        nameInput.classList.add('border-red-500');
+        setTimeout(() => nameInput.classList.remove('border-red-500'), 1500);
       }
     }
 
@@ -429,6 +460,9 @@
         if (e.key === 'Enter') submitAdd();
       });
       document.getElementById('addUnit').addEventListener('keydown', e => {
+        if (e.key === 'Enter') submitAdd();
+      });
+      document.getElementById('addCategory').addEventListener('keydown', e => {
         if (e.key === 'Enter') submitAdd();
       });
       buildCategoryFilters();
@@ -475,7 +509,7 @@
             </th>
             <th class="text-right px-5 py-3 font-medium">Qty</th>
             <th class="text-left px-5 py-3 font-medium">Unit</th>
-            <th class="text-left px-5 py-3 font-medium">Category</th>
+            <th class="text-left px-5 py-3 font-medium cursor-pointer select-none hover:text-white transition-colors" onclick="sortByCategory()">Category<span id="sortCatIcon"></span></th>
             <th class="px-5 py-3"></th>
           </tr>
         </thead>
@@ -514,7 +548,10 @@
               <input id="addUnit" type="text" placeholder="Unit"
                 class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none">
             </td>
-            <td class="px-5 py-2.5 text-gray-600 text-xs" colspan="1">Enter to add</td>
+            <td class="px-4 py-2.5">
+              <input id="addCategory" type="text" placeholder="Category (optional)"
+                class="bg-gray-800 text-white rounded px-2 py-1 w-full text-sm placeholder-gray-600 border border-gray-700 focus:border-indigo-500 outline-none">
+            </td>
             <td class="px-5 py-2.5 text-right">
               <button onclick="submitAdd()" class="text-indigo-400 hover:text-indigo-300 text-sm font-medium">+ Add</button>
             </td>

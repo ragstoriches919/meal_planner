@@ -16,6 +16,7 @@ class AddItemRequest(BaseModel):
     item_name: str
     quantity: float
     unit: str = ""
+    category: str = ""
 
 
 class SubtractRequest(BaseModel):
@@ -75,13 +76,13 @@ def list_inventory(inventory: Optional[str] = Query(default=None)):
 
 @router.post("", status_code=201)
 def add_item(body: AddItemRequest, inventory: Optional[str] = Query(default=None)):
-    return inv_db.add_item(body.item_name, body.quantity, body.unit, _resolve_inventory_id(inventory))
+    return inv_db.add_item(body.item_name, body.quantity, body.unit, _resolve_inventory_id(inventory), body.category)
 
 
 @router.post("/bulk", status_code=201)
 def bulk_add_items(body: BulkAddRequest, inventory: Optional[str] = Query(default=None)):
     inv_id = _resolve_inventory_id(inventory)
-    return [inv_db.add_item(item.item_name, item.quantity, item.unit, inv_id) for item in body.items]
+    return [inv_db.add_item(item.item_name, item.quantity, item.unit, inv_id, item.category) for item in body.items]
 
 
 @router.post("/from-dict", status_code=201)

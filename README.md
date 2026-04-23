@@ -22,7 +22,7 @@ The inventory page lets you manage items directly in the browser.
 
 **Delete an item** — hover over a row to reveal the ✕ button on the right.
 
-**Add an item** — use the input row at the bottom of the table. Fill in the name, quantity, and unit, then press Enter or click **+ Add**.
+**Add an item** — use the input row at the bottom of the table. Fill in the name, quantity, unit, and optionally a category, then press Enter or click **+ Add**.
 
 ---
 
@@ -50,12 +50,19 @@ curl -X POST "http://localhost:8000/inventory?inventory=srida" \
   -d '{"item_name": "eggs", "quantity": 12, "unit": "count"}'
 ```
 
+`category` is optional — include it to set the category on insert:
+```bash
+curl -X POST "http://localhost:8000/inventory?inventory=srida" \
+  -H "Content-Type: application/json" \
+  -d '{"item_name": "eggs", "quantity": 12, "unit": "count", "category": "dairy"}'
+```
+
 **Add multiple items (bulk list):**
 ```bash
 curl -X POST "http://localhost:8000/inventory/bulk?inventory=raghu" \
   -H "Content-Type: application/json" \
   -d '{"items": [
-    {"item_name": "milk", "quantity": 1, "unit": "gallon"},
+    {"item_name": "milk", "quantity": 1, "unit": "gallon", "category": "dairy"},
     {"item_name": "butter", "quantity": 2, "unit": "sticks"}
   ]}'
 ```

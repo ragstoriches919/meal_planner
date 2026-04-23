@@ -14,19 +14,20 @@ def list_inventory(inventory_id: int) -> list[dict]:
             return cur.fetchall()
 
 
-def add_item(name: str, quantity: float, unit: str = "", inventory_id: int = 1) -> dict:
+def add_item(name: str, quantity: float, unit: str = "", inventory_id: int = 1, category: str = "") -> dict:
     """Insert a new inventory row or increment quantity if the item already exists."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO inventory (inventory_id, item_name, quantity, unit)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO inventory (inventory_id, item_name, quantity, unit, category)
+                VALUES (%s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     quantity = quantity + VALUES(quantity),
-                    unit     = VALUES(unit)
+                    unit     = VALUES(unit),
+                    category = COALESCE(VALUES(category), category)
                 """,
-                (inventory_id, name, quantity, unit),
+                (inventory_id, name, quantity, unit, category or None),
             )
             conn.commit()
             cur.execute(
