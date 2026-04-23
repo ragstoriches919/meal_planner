@@ -76,3 +76,20 @@ def get_item_by_id(item_id: int) -> dict | None:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM inventory WHERE id = %s", (item_id,))
             return cur.fetchone()
+
+
+def add_items_from_dict(items: dict) -> list[dict]:
+    """Add multiple items from a dict.
+
+    Each key is an item name. Values can be:
+      - a number:          {"eggs": 12}
+      - a (qty, unit) tuple/list: {"milk": (1, "gallon")}
+    """
+    results = []
+    for name, value in items.items():
+        if isinstance(value, (list, tuple)):
+            quantity, unit = float(value[0]), str(value[1]) if len(value) > 1 else ""
+        else:
+            quantity, unit = float(value), ""
+        results.append(add_item(name, quantity, unit))
+    return results

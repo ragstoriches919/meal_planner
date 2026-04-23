@@ -22,6 +22,10 @@ class BulkAddRequest(BaseModel):
     items: list[AddItemRequest]
 
 
+class DictAddRequest(BaseModel):
+    items: dict[str, float | list]
+
+
 @router.get("")
 def list_inventory():
     return inv_db.list_inventory()
@@ -35,6 +39,11 @@ def add_item(body: AddItemRequest):
 @router.post("/bulk", status_code=201)
 def bulk_add_items(body: BulkAddRequest):
     return [inv_db.add_item(item.item_name, item.quantity, item.unit) for item in body.items]
+
+
+@router.post("/from-dict", status_code=201)
+def add_items_from_dict(body: DictAddRequest):
+    return inv_db.add_items_from_dict(body.items)
 
 
 @router.patch("/{item_id}")
