@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "branch=$(git branch --show-current 2>/dev/null); if [ \"$branch\" = \"main\" ]; then echo '{\"continue\": false, \"stopReason\": \"You are on the main branch — no direct edits allowed. Run /new-branch-issue to create a feature branch first.\"}'; fi",
+            "statusMessage": "Checking branch..."
+          }
+        ]
+      }
+    ]
+  }
+}
