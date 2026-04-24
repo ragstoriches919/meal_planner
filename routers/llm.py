@@ -1,18 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Query, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from db import inventories as inventories_db
 from db import inventory as inv_db
 from db import preferences as prefs_db
 from services.llm import query_gemma, scan_receipt, serialize_inventory
+from services.pdf_email import send_recipe_email
 
 router = APIRouter(prefix="/llm", tags=["llm"])
 
 
 class RecipeHintRequest(BaseModel):
     hint: str = ""
+
+
+class EmailRecipeRequest(BaseModel):
+    recipe: str
 
 
 @router.get("/chat")
@@ -80,3 +85,14 @@ def get_recipe(name: str):
         vegetarian=vegetarian,
     )
     return {"name": name, "recipe": recipe}
+
+
+@router.post("/recipe/{name}/email")
+def email_recipe(name: str, body: EmailRecipeRequest):
+    try:
+        send_recipe_email(name, body.recipe)
+        return {"success": True}
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {e}")

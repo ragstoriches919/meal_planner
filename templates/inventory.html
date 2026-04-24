@@ -199,6 +199,47 @@
 
       detail.innerHTML = marked.parse(data.recipe);
       detail.dataset.loaded = 'true';
+      detail.dataset.recipe = data.recipe;
+
+      const emailBtn = document.createElement('button');
+      emailBtn.className = 'mt-5 flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors';
+      emailBtn.innerHTML = '&#9993; Email Recipe PDF';
+      emailBtn.addEventListener('click', () => emailRecipePdf(name, data.recipe, emailBtn));
+      detail.appendChild(emailBtn);
+    }
+
+    async function emailRecipePdf(name, recipe, btn) {
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'Sending…';
+      try {
+        const res = await fetch('/llm/recipe/' + encodeURIComponent(name) + '/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipe }),
+        });
+        if (res.ok) {
+          btn.innerHTML = '&#10003; Sent!';
+          btn.className = btn.className.replace('bg-indigo-600 hover:bg-indigo-500', 'bg-green-700');
+          setTimeout(() => {
+            btn.innerHTML = original;
+            btn.className = btn.className.replace('bg-green-700', 'bg-indigo-600 hover:bg-indigo-500');
+            btn.disabled = false;
+          }, 3000);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          btn.innerHTML = '&#10007; ' + (err.detail || 'Failed');
+          btn.className = btn.className.replace('bg-indigo-600 hover:bg-indigo-500', 'bg-red-700');
+          setTimeout(() => {
+            btn.innerHTML = original;
+            btn.className = btn.className.replace('bg-red-700', 'bg-indigo-600 hover:bg-indigo-500');
+            btn.disabled = false;
+          }, 4000);
+        }
+      } catch {
+        btn.innerHTML = '&#10007; Error';
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+      }
     }
 
     // ── Inventory editing ──────────────────────────────────────────────────
